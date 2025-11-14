@@ -52,6 +52,15 @@ export default function Menu() {
             <div className="grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0,1fr))' }}>
               {items.map(item => (
                 <div key={item.id_producto || item.id} className="card">
+                  {item.image_url && (
+                    <div style={{ marginBottom: '.5rem' }}>
+                      <img
+                        src={item.image_url}
+                        alt={item.nombre || item.name}
+                        style={{ width: '100%', height: '160px', objectFit: 'cover', borderRadius: '.5rem' }}
+                      />
+                    </div>
+                  )}
                   <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
                     <div style={{ fontWeight:600 }}>{item.nombre || item.name}</div>
                     <div className="price">{formatPrice(item.precio || item.price || 0)}</div>
