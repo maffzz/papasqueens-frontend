@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useCart } from '../context/CartContext'
 import { api, formatPrice } from '../api/client'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 export default function Menu() {
   const [items, setItems] = useState([])
@@ -9,6 +10,7 @@ export default function Menu() {
   const [err, setErr] = useState('')
   const { items: cart, add, remove, clear, total } = useCart()
   const nav = useNavigate()
+  const { auth } = useAuth()
 
   useEffect(() => {
     (async () => {
@@ -23,12 +25,15 @@ export default function Menu() {
     ev.preventDefault()
     if (!cart.length) return alert('Tu carrito está vacío')
     const fd = new FormData(ev.currentTarget)
+    const tenant_id = localStorage.getItem('tenantId') || '';
     const payload = {
-      id_customer: String(fd.get('phone')||''),
+      id_customer: auth?.id || '',
+      tenant_id,
+      list_id_products: cart.map(x => x.id_producto),
+      // Otros datos adicionales para info rápida:
       customer_name: fd.get('customer'),
       phone: fd.get('phone'),
       address: fd.get('address'),
-      items: cart.map(x => ({ id_producto: x.id_producto, cantidad: x.qty, precio: x.precio }))
     }
     try {
       const res = await api('/orders', { method: 'POST', body: JSON.stringify(payload) })
