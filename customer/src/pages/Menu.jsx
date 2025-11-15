@@ -28,13 +28,13 @@ export default function Menu() {
         const data = await api('/menu')
         const all = Array.isArray(data) ? data : (data.items || [])
         setAllItems(all)
-        
+
         // Guardar categorías únicas en localStorage para que el header las use
         const uniqueCategories = [...new Set(all.map(item => item.categoria || item.category).filter(Boolean))]
         if (uniqueCategories.length > 0) {
           localStorage.setItem('availableCategories', JSON.stringify(uniqueCategories))
         }
-        
+
         // Aplicar filtro de categoría si existe
         // El backend usa el campo "categoria" (en español) según add_menu_item.py
         if (selectedCategory) {
@@ -81,13 +81,14 @@ export default function Menu() {
       return
     }
     try {
-      console.log('Creando pedido con payload:', payload)
-      const res = await api('/orders', { method: 'POST', body: JSON.stringify(payload) })
-      console.log('Respuesta del servidor:', res)
-      clear()
-      const orderId = res.id_order || res.order_id || res.id || ''
+      const res = await api('/orders', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      })
+      const orderId = res.id_pedido || res.id
       if (orderId) {
-        alert(`¡Pedido creado exitosamente! ID: ${orderId}`)
+        showToast({ type: 'success', message: `¡Pedido #${orderId} creado exitosamente!` })
+        clear()
         nav(`/track?id=${encodeURIComponent(orderId)}`)
       } else {
         alert('Pedido creado pero no se recibió ID. Revisa en "Rastrear pedido"')
@@ -110,8 +111,8 @@ export default function Menu() {
                 Nuestro Menú {selectedCategory && `- ${selectedCategory}`}
               </h2>
               {selectedCategory && (
-                <button 
-                  className="btn" 
+                <button
+                  className="btn"
                   onClick={() => {
                     setSelectedCategory('')
                     localStorage.removeItem('selectedCategory')
@@ -129,20 +130,20 @@ export default function Menu() {
                     <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
                       {/* Imagen del producto si existe */}
                       {item.imagen || item.image || item.image_url ? (
-                        <img 
-                          src={item.imagen || item.image || item.image_url} 
-                          alt={item.nombre || item.name} 
-                          style={{ width:'100%', height:'150px', borderRadius:'8px', objectFit:'cover', marginBottom:'.5rem' }} 
+                        <img
+                          src={item.imagen || item.image || item.image_url}
+                          alt={item.nombre || item.name}
+                          style={{ width:'100%', height:'150px', borderRadius:'8px', objectFit:'cover', marginBottom:'.5rem' }}
                         />
                       ) : (
                         <div style={{ width:'100%', height:'150px', background:'#f0f0f0', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'48px', marginBottom:'.5rem' }}>
-                          🍟
+                          🍕
                         </div>
                       )}
                       <div style={{ fontWeight:600, fontSize:'16px' }}>{item.nombre || item.name}</div>
                       <div className="price" style={{ fontSize:'18px' }}>{formatPrice(item.precio || item.price || 0)}</div>
-                      <button 
-                        className="btn primary" 
+                      <button
+                        className="btn primary"
                         onClick={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
@@ -168,54 +169,54 @@ export default function Menu() {
               </div>
             )}
           </div>
-        <aside className="card" style={{ position:'sticky', top:'5rem' }}>
-          <h2 className="appTitle" style={{ marginBottom: '.5rem' }}>Tu carrito</h2>
-          <div className="list">
-            {cart.map(x => (
-              <div key={x.id_producto} className="card">
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:'.75rem' }}>
-                  <div>
-                    <div>{x.nombre}</div>
-                    <div className="price">{formatPrice(x.precio)} × {x.qty}</div>
+          <aside className="card" style={{ position:'sticky', top:'5rem' }}>
+            <h2 className="appTitle" style={{ marginBottom: '.5rem' }}>Tu carrito</h2>
+            <div className="list">
+              {cart.map(x => (
+                <div key={x.id_producto} className="card">
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:'.75rem' }}>
+                    <div>
+                      <div>{x.nombre}</div>
+                      <div className="price">{formatPrice(x.precio)} × {x.qty}</div>
+                    </div>
+                    <button
+                      className="btn"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        remove(x.id_producto)
+                        showToast({ type: 'info', message: `${x.nombre} removido del carrito` })
+                      }}
+                    >
+                      Quitar
+                    </button>
                   </div>
-                  <button 
-                    className="btn" 
-                    onClick={(e) => {
-                      e.preventDefault()
-                      remove(x.id_producto)
-                      showToast({ type: 'info', message: `${x.nombre} removido del carrito` })
-                    }}
-                  >
-                    Quitar
-                  </button>
                 </div>
-              </div>
-            ))}
-          </div>
-          <div style={{ display:'flex', justifyContent:'space-between', marginTop:'1rem' }}>
-            <div>Total</div>
-            <div className="price">{formatPrice(total)}</div>
-          </div>
-          <hr style={{ margin:'1rem 0', border:'none', borderTop:'1px solid #eee' }} />
-          {!auth?.id && (
-            <div style={{ padding: '1rem', background: '#fff3cd', borderRadius: '8px', marginBottom: '1rem' }}>
-              <strong>⚠️ Debes iniciar sesión para crear un pedido</strong>
-              <button className="btn primary" onClick={() => nav('/login')} style={{ width: '100%', marginTop: '0.5rem' }}>
-                Ir a Login
-              </button>
+              ))}
             </div>
-          )}
-          <form onSubmit={createOrder} className="list">
-            <button 
-              className="btn primary" 
-              type="submit" 
-              disabled={!auth?.id || !cart.length}
-              style={{ width: '100%' }}
-            >
-              {!auth?.id ? 'Inicia sesión primero' : cart.length ? 'Confirmar pedido' : 'Carrito vacío'}
-            </button>
-          </form>
-        </aside>
+            <div style={{ display:'flex', justifyContent:'space-between', marginTop:'1rem' }}>
+              <div>Total</div>
+              <div className="price">{formatPrice(total)}</div>
+            </div>
+            <hr style={{ margin:'1rem 0', border:'none', borderTop:'1px solid #eee' }} />
+            {!auth?.id && (
+              <div style={{ padding: '1rem', background: '#fff3cd', borderRadius: '8px', marginBottom: '1rem' }}>
+                <strong>⚠️ Debes iniciar sesión para crear un pedido</strong>
+                <button className="btn primary" onClick={() => nav('/login')} style={{ width: '100%', marginTop: '0.5rem' }}>
+                  Ir a Login
+                </button>
+              </div>
+            )}
+            <form onSubmit={createOrder} className="list">
+              <button
+                className="btn primary"
+                type="submit"
+                disabled={!auth?.id || !cart.length}
+                style={{ width: '100%' }}
+              >
+                {!auth?.id ? 'Inicia sesión primero' : cart.length ? 'Confirmar pedido' : 'Carrito vacío'}
+              </button>
+            </form>
+          </aside>
         </section>
       </div>
     </main>

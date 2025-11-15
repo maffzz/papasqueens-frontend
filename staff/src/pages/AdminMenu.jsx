@@ -53,6 +53,15 @@ export default function AdminMenu() {
         <div className="grid" style={{ gridTemplateColumns:'repeat(3, minmax(0,1fr))' }}>
           {items.map(it => (
             <div className="card" key={it.id_producto}>
+              {it.image_url && (
+                <div style={{ marginBottom: '.5rem' }}>
+                  <img
+                    src={it.image_url}
+                    alt={it.nombre}
+                    style={{ width:'100%', height:'140px', objectFit:'cover', borderRadius:'.5rem' }}
+                  />
+                </div>
+              )}
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                 <div>
                   <div style={{ fontWeight:600 }}>{it.nombre}</div>
