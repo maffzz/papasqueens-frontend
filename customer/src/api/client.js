@@ -1,8 +1,16 @@
-const API_BASE = 'https://vv73ssvui0.execute-api.us-east-1.amazonaws.com/dev'
+const API_BASE = 'https://z9ojkmcicl.execute-api.us-east-1.amazonaws.com/dev'
 
 function getAuth() { try { return JSON.parse(localStorage.getItem('auth') || '{}') } catch { return {} } }
 function setAuth(a) { localStorage.setItem('auth', JSON.stringify(a || {})) }
-function getTenantId() { try { return localStorage.getItem('tenantId') || (import.meta && import.meta.env && import.meta.env.VITE_TENANT_ID) || '' } catch { return '' } }
+
+function getTenantId() {
+  try {
+    // Prioridad: localStorage > variable de entorno > valor por defecto
+    return localStorage.getItem('tenantId') 
+      || (import.meta && import.meta.env && import.meta.env.VITE_TENANT_ID)
+      || 'tenant_pq_barranco' // Valor por defecto que funciona
+  } catch { return 'tenant_pq_barranco' }
+}
 function setTenantId(id) { try { if (id) localStorage.setItem('tenantId', id); else localStorage.removeItem('tenantId') } catch {} }
 
 async function api(path, opts = {}) {

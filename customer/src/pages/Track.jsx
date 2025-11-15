@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api, formatPrice, haversine, formatDuration } from '../api/client'
 import { useToast } from '../context/ToastContext'
+import { useAuth } from '../context/AuthContext'
 import L from 'leaflet'
 
 export default function Track() {
@@ -18,6 +19,7 @@ export default function Track() {
   const polyRef = useRef(null)
   const lastPointRef = useRef(null)
   const { showToast } = useToast()
+  const { auth } = useAuth()
 
   function canCancelStatus(st) {
     if (!st) return false
@@ -26,18 +28,36 @@ export default function Track() {
   }
 
   async function fetchOrder(oid) {
+    if (!oid || !oid.trim()) {
+      setErr('Por favor ingresa un ID de pedido válido')
+      return
+    }
     try {
+      setErr('')
+      console.log('Consultando pedido:', oid)
       const data = await api(`/orders/${encodeURIComponent(oid)}/status`)
       setOrder(data || {})
-      setErr('')
-      try { const det = await api(`/orders/${encodeURIComponent(oid)}`); setOrderDetails(det || {}) } catch {}
+      showToast({ type: 'success', message: 'Pedido encontrado' })
+      try { 
+        const det = await api(`/orders/${encodeURIComponent(oid)}`)
+        setOrderDetails(det || {}) 
+      } catch (e) {
+        console.warn('No se pudo obtener detalles completos:', e)
+      }
       const d = data || {}
       const maybe = d.id_delivery || d.delivery_id || (d.delivery && (d.delivery.id_delivery || d.delivery.id))
       if (maybe && !deliveryId) {
         setDeliveryId(String(maybe))
         await fetchTrack(String(maybe))
       }
-    } catch (e) { setOrder(null); setErr('Error consultando el estado') }
+    } catch (e) { 
+      console.error('Error consultando pedido:', e)
+      setOrder(null)
+      setOrderDetails(null)
+      const errorMsg = e.message || 'Error consultando el estado del pedido'
+      setErr(errorMsg)
+      showToast({ type: 'error', message: errorMsg })
+    }
   }
 
   useEffect(() => { if (id) fetchOrder(id) }, [])
@@ -46,24 +66,74 @@ export default function Track() {
 
   async function fetchTrack(idDel) {
     try {
+      console.log('Consultando tracking para delivery:', idDel)
       const data = await api(`/delivery/${encodeURIComponent(idDel)}/track`)
-      renderTrack(data)
+      console.log('Datos de tracking recibidos:', data)
+      // El backend devuelve last_location: {lat, lon} o puede devolver un array de points
+      if (data && typeof data === 'object') {
+        if (Array.isArray(data)) {
+          renderTrack({ points: data })
+        } else if (data.lat !== undefined && data.lon !== undefined) {
+          // Backend devuelve solo last_location como {lat, lon}
+          renderTrack({ points: [{ lat: data.lat, lng: data.lon }] })
+        } else if (data.points) {
+          renderTrack(data)
+        } else {
+          renderTrack({ points: [] })
+        }
+      } else {
+        renderTrack({ points: [] })
+      }
     } catch (e) {
+      console.error('Error obteniendo tracking:', e)
       const wrap = document.getElementById('cust-track-view');
       if (wrap) wrap.innerHTML = '<div class="card">No hay tracking disponible aún</div>'
     }
   }
 
   async function cancelOrder() {
-    if (!id) return
-    if (!confirm('¿Cancelar este pedido?')) return
-    try { await api(`/orders/${encodeURIComponent(id)}/cancel`, { method:'POST' }); showToast({ type:'success', message:'Pedido cancelado' }); await fetchOrder(id) } catch { showToast({ type:'error', message:'No se pudo cancelar' }) }
+    if (!id) {
+      showToast({ type: 'warning', message: 'No hay pedido seleccionado' })
+      return
+    }
+    if (!confirm('¿Estás seguro de cancelar este pedido?')) return
+    try {
+      console.log('Cancelando pedido:', id)
+      await api(`/orders/${encodeURIComponent(id)}/cancel`, { method:'POST' })
+      showToast({ type:'success', message:'Pedido cancelado exitosamente' })
+      await fetchOrder(id)
+    } catch (e) {
+      console.error('Error al cancelar:', e)
+      const errorMsg = e.message || 'No se pudo cancelar el pedido'
+      showToast({ type:'error', message: errorMsg })
+    }
   }
 
   async function fetchCustomerOrders(ev) {
     ev.preventDefault()
-    if (!custId) { showToast({ type:'warning', message:'Ingresa ID cliente' }); return }
-    try { const data = await api(`/orders/customer/${encodeURIComponent(custId)}`); setCustOrders(Array.isArray(data)?data:(data.items||[])) } catch { setCustOrders([]); showToast({ type:'error', message:'No se pudo obtener pedidos' }) }
+    const { auth } = useAuth()
+    const customerIdToUse = custId?.trim() || auth?.id
+    if (!customerIdToUse) { 
+      showToast({ type:'warning', message:'Ingresa un ID de cliente o inicia sesión' })
+      return 
+    }
+    try {
+      console.log('Buscando pedidos del cliente:', customerIdToUse)
+      // El backend espera el id_customer en el path y usa el X-User-Id del header para validar
+      const data = await api(`/orders/customer/${encodeURIComponent(customerIdToUse)}`)
+      const orders = Array.isArray(data) ? data : (data.items || [])
+      setCustOrders(orders)
+      if (orders.length === 0) {
+        showToast({ type: 'info', message: 'No se encontraron pedidos para este cliente' })
+      } else {
+        showToast({ type: 'success', message: `Se encontraron ${orders.length} pedido(s)` })
+      }
+    } catch (e) {
+      console.error('Error obteniendo pedidos:', e)
+      setCustOrders([])
+      const errorMsg = e.message || 'No se pudo obtener los pedidos'
+      showToast({ type:'error', message: errorMsg })
+    }
   }
 
   function renderTrack(t) {

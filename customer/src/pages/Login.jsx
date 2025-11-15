@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api } from '../api/client'
+import { api, getTenantId } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 
@@ -13,19 +13,47 @@ export default function Login() {
   async function onSubmit(ev) {
     ev.preventDefault()
     const fd = new FormData(ev.currentTarget)
-    const payload = { email: fd.get('email'), password: fd.get('password'), name: fd.get('name') }
-    if (!payload.email || !payload.password) { setMsg('Completa email y contraseña'); showToast({ type:'warning', message:'Completa email y contraseña' }); return }
+    const tenant_id = getTenantId()
+    if (!tenant_id) {
+      setMsg('Error: No se encontró tenant_id. Por favor recarga la página.')
+      showToast({ type: 'error', message: 'Error: tenant_id requerido' })
+      return
+    }
+    const payload = { 
+      email: fd.get('email'), 
+      password: fd.get('password'), 
+      name: fd.get('name'),
+      tenant_id: tenant_id  // Backend requiere tenant_id en el body
+    }
+    if (!payload.email || !payload.password) { 
+      setMsg('Completa email y contraseña')
+      showToast({ type:'warning', message:'Completa email y contraseña' })
+      return 
+    }
     try {
+      console.log('Intentando login con tenant_id:', tenant_id)
       const res = await api('/auth/customer/login', { method: 'POST', body: JSON.stringify(payload) })
+      console.log('Respuesta del login:', res)
       const token = res.token || res.access_token || 'customer'
       const headersReq = res.headers_required || {}
-      login({ token, role: 'cliente', user: res.name || payload.name || payload.email, id: res.id_user || headersReq['X-User-Id'], email: res.email || payload.email, type: 'customer' })
+      const userData = {
+        token,
+        role: 'cliente',
+        user: res.name || payload.name || payload.email,
+        id: res.id_user || res.id || headersReq['X-User-Id'] || payload.email,
+        email: res.email || payload.email,
+        type: 'customer',
+        tenant_id: res.tenant_id || tenant_id  // Guardar tenant_id en auth
+      }
+      login(userData)
       setMsg('Ingreso correcto')
       showToast({ type:'success', message:'Ingreso correcto' })
-      nav('/')
+      setTimeout(() => nav('/'), 500)
     } catch (e) {
-      setMsg('Credenciales inválidas')
-      showToast({ type:'error', message:'Credenciales inválidas' })
+      console.error('Error en login:', e)
+      const errorMsg = e.message || 'Credenciales inválidas'
+      setMsg(errorMsg)
+      showToast({ type:'error', message: errorMsg })
     }
   }
 
